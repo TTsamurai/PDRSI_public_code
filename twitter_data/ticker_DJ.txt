@@ -1,0 +1,1 @@
+'UNH' 'GS' 'HD' 'AMGN' 'MCD' 'MSFT' 'CAT' 'HON' 'V' 'TRV' 'BA' 'JNJ' 'CVX' 'AXP' 'PG' 'WMT' 'IBM' 'AAPL' 'JPM' 'CRM' 'MMM' 'NKE' 'MRK' 'DIS' 'KO' 'DOW' 'CSCO' 'WBA' 'VZ' 'INTC' 
