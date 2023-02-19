@@ -2,12 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
 from torchinfo import summary
 from tqdm import tqdm
 
 from models.PDRSI import PDRSI
-from utility.dataset import MyDatasetWithBothDiscussion, get_data
+from utility.dataset import get_dataloader #! add get_dataloader and remove MyDatasetWithBothDiscussion and get_data
 from utility.matric import report_performance
 from utility.utils import torch_fix_seed
 
@@ -22,56 +21,44 @@ def main(model, debug_test: bool, model_config: dict):
     batch_size = model_config["batch_size"]
     lr = model_config["lr"]
     device = torch.device("cuda", index=0) if torch.cuda.is_available() else "cpu"
+    #! 個人的ではあるが，GPUあるのにCPUでやりたい人はCUDA_VISIBLE_DEVICE=0 python model_run.py
+    #! で実行するのでこれはなくても良いと思う
     use_gpu = True
 
     if debug_test:
         model_config = {"alias": "debug_test_{}".format(T_dash), "bert_type": bert_type}
         num_epochs = 2
 
-    (
-        train_text,
-        valid_text,
-        test_text,
-        train_label,
-        valid_label,
-        test_label,
-        train_date,
-        valid_date,
-        test_date,
-    ) = get_data(model_config=model_config, T_dash=T_dash, prune=prune)
-
-    if debug_test:
-        train_text = train_text[:100, :, :]
-        train_label = train_label[:100, :, :]
-        train_date = train_date[:100]
-        valid_text = train_text[:100, :, :]
-        valid_label = train_label[:100, :, :]
-        valid_date = valid_date[:100]
-        test_text = train_text[:100, :, :]
-        test_label = train_label[:100, :, :]
-        test_date = test_date[:100]
-
-    train_dataset = MyDatasetWithBothDiscussion(
-        input_ids=train_text,
-        labels=train_label,
-        date=train_date,
+    #! train, valid, testごとに毎行書くのは冗長
+    #! datasetはdataloaderに入力する以外使わないのでget_dataloaderに押し込めた
+    #! テストとかきちんとするなら分けるべきではあると思う
+    train_dataloader = get_dataloader(
+        model_config=model_config,
+        T_dash=T_dash,
+        split="train",
         length_technical=length_technical,
+        batch_size=batch_size,
+        prune=prune,
+        debug_test=debug_test
     )
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    valid_dataset = MyDatasetWithBothDiscussion(
-        input_ids=valid_text,
-        labels=valid_label,
-        date=valid_date,
+    valid_dataloader = get_dataloader(
+        model_config=model_config,
+        T_dash=T_dash,
+        split="valid",
         length_technical=length_technical,
+        batch_size=batch_size,
+        prune=prune,
+        debug_test=debug_test
     )
-    valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
-    test_dataset = MyDatasetWithBothDiscussion(
-        input_ids=test_text,
-        labels=test_label,
-        date=test_date,
+    test_dataloader = get_dataloader(
+        model_config=model_config,
+        T_dash=T_dash,
+        split="test",
         length_technical=length_technical,
+        batch_size=batch_size,
+        prune=prune,
+        debug_test=debug_test
     )
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     print(summary(model=model))
 
     if use_gpu:
@@ -86,6 +73,19 @@ def main(model, debug_test: bool, model_config: dict):
         epoch_test_loss = 0
         model.train()
         for i, batch in tqdm(enumerate(train_dataloader)):
+            #! squeezeやfloatの処理をdatasetや前処理に入れる+lossの処理までモデルの実装に入れると
+            #! 以下のように書ける
+            """
+            def move_to_cuda(
+                batch: Dict[str, torch.Tensor], device: torch.device
+            ) -> Dict[str, torch.Tensor]:
+                for k, v in batch.items():
+                    batch[k] = v.to(device)
+                return batch
+            
+            batch = move_to_cuda(batch, device)
+            predict, loss = model(**batch)
+            """
             input_text = batch[0]
             tweet_label = batch[1].squeeze(dim=1).float()
             history_label = batch[2].float()
@@ -112,6 +112,15 @@ def main(model, debug_test: bool, model_config: dict):
         model.eval()
         val_predict = []
         val_label = []
+        #! validationもbackwardせず勾配が必要ないのでwith torch.no_grad()の中に入れて良い
+        #! またvalidationとtestはほぼ同じコードなはずなので，関数化することで冗長さが減らせると思う(これは人による)
+        """
+        def eval_model(model: nn.Module, dataloader: DataLoader, device: torch.device):
+            with torch.no_grad():
+                for batch in loader:
+                    # モデルに入力したり評価
+            return report_performance(色々入力)
+        """
         for _, batch in tqdm(enumerate(valid_dataloader)):
 
             input_text = batch[0]
@@ -132,6 +141,7 @@ def main(model, debug_test: bool, model_config: dict):
                 technical_discussion,
             )
             loss = criterion(predict, tweet_label)
+            #! 以下3行，to("cpu")しなくてもcpuに渡る気がする
             epoch_valid_loss += loss.detach().to("cpu").item()
             val_predict.append(predict.detach().to("cpu").numpy())
             val_label.append(tweet_label.detach().to("cpu").numpy())
@@ -165,7 +175,9 @@ def main(model, debug_test: bool, model_config: dict):
                     discussion,
                     technical_discussion,
                 )
-                loss = criterion(predict, tweet_label)
+                #! remove criterion
+                # loss = criterion(predict, tweet_label)
+                #! 以下3行，to("cpu")しなくてもcpuに渡る気がする
                 epoch_test_loss += loss.detach().to("cpu").item()
                 test_predict.append(predict.detach().to("cpu").numpy())
                 test_label.append(tweet_label.detach().to("cpu").numpy())

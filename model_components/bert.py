@@ -33,6 +33,7 @@ class Bert(nn.Module):
         return outputs.pooler_output
 
 
+#! 公開する時はコードのコメントアウトは消しておくと美しい
 # class Bert(nn.Module):
 #     def __init__(self, model_config):
 #         super(Bert, self).__init__()

@@ -4,12 +4,14 @@ from datetime import datetime as dt
 
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 from preprocess.create_data import get_text_and_label_data
 from preprocess.create_technical_discussion import get_n_days_technical_discussion
 
 
+#! 内容を読んでいないが，Datasetではなくその前のpreprocessで処理して，
+#! DatasetはPyTorchとかのを使ったほうが素直な気はする
 class MyDatasetWithBothDiscussion(Dataset):
     """
     Return:
@@ -71,6 +73,8 @@ class MyDatasetWithBothDiscussion(Dataset):
         return discussion
 
     def __getitem__(self, index):
+        #! __getitem__に処理を入れると同じサンプルに対してepoch回処理してしまわない？
+        #! そうであるならばこれも前処理でやっておくほうが素直かと
         return (
             self.input_ids[index],
             self.tweet_labels[index],
@@ -83,74 +87,66 @@ class MyDatasetWithBothDiscussion(Dataset):
             ),
         )
 
-
-def get_data(
+#! train, valid, testごとにそれぞれ書くのは無駄なので引数で処理
+def get_data( #! Change function name
     model_config: dict,
-    T_dash: int,
+    T_dash: int, #! PEP8では変数名は小文字推奨
+    split: str, #! Add split argument
     prune: bool = False,
     project_path: str = "./",
 ):
+    assert split in {"train", "valid", "test"}, f"Invalid split: {split}. It must be train, valid, or test."
     data_path = project_path + "data/"
     bert_type = model_config["bert_type"]
-    data_train_text_path = project_path + "data/train/text_{}_{}.npy".format(
-        T_dash, bert_type
+    #! Change variable name and format argument
+    data_text_path = project_path + "data/{}/text_{}_{}.npy".format(
+        split, T_dash, bert_type
     )
-    data_valid_text_path = project_path + "data/valid/text_{}_{}.npy".format(
-        T_dash, bert_type
-    )
-    data_test_text_path = project_path + "data/test/text_{}_{}.npy".format(
-        T_dash, bert_type
-    )
-    data_train_label_path = project_path + "data/train/label_{}.npy".format(T_dash)
-    data_valid_label_path = project_path + "data/valid/label_{}.npy".format(T_dash)
-    data_test_label_path = project_path + "data/test/label_{}.npy".format(T_dash)
-    data_train_date_path = "./data/train/date_{}.npy".format(T_dash)
-    data_valid_date_path = "./data/valid/date_{}.npy".format(T_dash)
-    data_test_date_path = "./data/test/date_{}.npy".format(T_dash)
+    data_label_path = project_path + "data/{}/label_{}.npy".format(split, T_dash)
+    data_date_path = "./data/{}/date_{}.npy".format(split, T_dash)
 
-    if os.path.exists(data_train_text_path):
-        train_text = np.load(data_train_text_path)
-        valid_text = np.load(data_valid_text_path)
-        test_text = np.load(data_test_text_path)
-        train_label = np.load(data_train_label_path)
-        valid_label = np.load(data_valid_label_path)
-        test_label = np.load(data_test_label_path)
-        train_date = np.load(data_train_date_path, allow_pickle=True)
-        valid_date = np.load(data_valid_date_path, allow_pickle=True)
-        test_date = np.load(data_test_date_path, allow_pickle=True)
-
+    if os.path.exists(data_text_path):
+        #! 便宜上変数名を変えたがここにこだわりはない
+        data_text = np.load(data_text_path)
+        data_label = np.load(data_label_path)
+        data_date = np.load(data_date_path, allow_pickle=True)
+        
     else:
-        (
-            train_text,
-            valid_text,
-            test_text,
-            train_label,
-            valid_label,
-            test_label,
-            train_date,
-            valid_date,
-            test_date,
-        ) = get_text_and_label_data(
-            model_config=model_config, data_path=data_path, T_dash=T_dash, prune=prune
+        #! ここもsplitを追加
+        data_text, data_label, data_date = get_text_and_label_data(
+            model_config=model_config, data_path=data_path, split=split, T_dash=T_dash, prune=prune
         )
-        np.save(data_train_text_path, train_text)
-        np.save(data_valid_text_path, valid_text)
-        np.save(data_test_text_path, test_text)
-        np.save(data_train_label_path, train_label)
-        np.save(data_valid_label_path, valid_label)
-        np.save(data_test_label_path, test_label)
-        np.save(data_train_date_path, train_date)
-        np.save(data_valid_date_path, valid_date)
-        np.save(data_test_date_path, test_date)
 
-    return (
-        train_text,
-        valid_text,
-        test_text,
-        train_label,
-        valid_label,
-        test_label,
-        train_date,
-        valid_date,
-        test_date,
+        np.save(data_text_path, data_text)
+        np.save(data_label_path, data_label)
+        np.save(data_date_path, data_date)
+
+    return (data_text, data_label, data_date)
+
+
+def get_dataloader(
+    model_config: dict,
+    T_dash: int,
+    split: str,
+    length_technical: int,
+    batch_size: int,
+    prune: bool = False,
+    debug_test: bool = False,
+) -> DataLoader: 
+    assert split in {"train", "valid", "test"}, f"Invalid split: {split}. It must be train, valid, or test."
+    data_text, data_label, data_date = get_data(model_config=model_config, splilt=split, T_dash=T_dash, prune=prune)
+    if debug_test:
+        data_text = data_text[:100, :, :]
+        data_label = data_label[:100, :, :]
+        data_date = data_date[:100]
+    #! 最近はHuggingFaceのDatasetsライブラリに移行する人もちらほら
+    #! cf. https://huggingface.co/docs/datasets/index
+    dataset = MyDatasetWithBothDiscussion(
+        input_ids=data_text,
+        labels=data_label,
+        date=data_date,
+        length_technical=length_technical,
     )
+    shuffle: bool = bool(split == "train")
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    return dataloader
