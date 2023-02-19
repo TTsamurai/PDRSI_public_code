@@ -4,56 +4,63 @@ import torch.nn as nn
 class ConvDiscussion(nn.Module):
     def __init__(self):
         super(ConvDiscussion, self).__init__()
-        self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(2, stride=2)
-        self.conv1 = nn.Conv2d(1, 1, 4, stride=2)
-        self.conv2 = nn.Conv2d(1, 1, 4)
-
-        self.fc1 = nn.Linear(61 * 94, 768)
-
+        #! write with nn.Sequential
+        self.seq1 = nn.Sequential(
+            nn.Conv2d(1, 1, 4, stride=2),
+            nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),
+            nn.Conv2d(1, 1, 4),
+            nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),
+        )
+        self.seq2 = nn.Sequential(
+            nn.Linear(61 * 94, 768),
+            nn.ReLU(),
+        )
+        
     def forward(self, x):
         # channel = 1
-        x = x.unsqueeze(dim=1)
-        x = self.conv1(x)
-        x = self.relu(x)
-        x = self.pool(x)
-        x = self.conv2(x)
-        x = self.relu(x)
-        x = self.pool(x)
+        #! write with nn.Sequential
+        x = self.seq1(x.unsqueeze(dim=1))
         x = x.view(x.size()[0], -1)
-        x = self.fc1(x)
-        x = self.relu(x)
+        x = self.seq2(x)
         return x
 
 
 class ConvTechnicalDiscussion(nn.Module):
     def __init__(self, n_length):
         super(ConvTechnicalDiscussion, self).__init__()
-        self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(2, stride=2)
-        self.conv1 = nn.Conv2d(1, 1, 4, stride=2)
-        self.conv2 = nn.Conv2d(1, 1, 4)
+        #! write with nn.Sequential
+        #! 行数的にはもとのほうが少ない気もするが，こちらは順番が見やすい
+        #! どちらがいいかはわからない
+        self.seq1 = nn.Sequential(
+            nn.Conv2d(1, 1, 4, stride=2),
+            nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),
+        )
         self.n_length = n_length
-        self.fc_layers = {
+        if self.n_length != 1:
+            self.seq2 = nn.Sequential(
+                nn.Conv2d(1, 1, 4),
+                nn.ReLU(),
+                nn.MaxPool2d(2, stride=2),
+            )
+        #! 型が後で変わるのが気持ち悪いのでselfを取り除いた
+        fc_layers = {
             1: nn.Linear(375, 768),
             7: nn.Linear(660, 768),
             14: nn.Linear(1464, 768),
         }
-        if n_length not in self.fc_layers:
-            raise ValueError("N_length Check")
-        else :
-            self.fc_layer = self.fc_layers[n_length]
-
+        #! なくても結局ValueError
+        self.fc_layer = nn.Sequential(
+            fc_layers[n_length],
+            nn.ReLU(),
+        )
+        
     def forward(self, x):
-        x = x.unsqueeze(dim=1)
-        x = self.conv1(x)
-        x = self.relu(x)
-        x = self.pool(x)
+        x = self.seq1(x.unsqueeze(dim=1))
         if self.n_length != 1:
-            x = self.conv2(x)
-            x = self.relu(x)
-            x = self.pool(x)
+            x = self.seq2(x)
         x = x.view(x.size()[0], -1)
         x = self.fc_layer(x)
-        x = self.relu(x)
         return x
