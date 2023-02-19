@@ -132,8 +132,9 @@ def build_history(ids: list, T_dash: int):
     assert set(test_id_dict.keys()) == set(
         valid_id_dict.keys()
     ), "Some samples are lost during valid set"
+    #! ここで両方test_id_dictになっているのは誤り
     assert set(test_id_dict.keys()) == set(
-        test_id_dict.keys()
+        train_id_dict.keys()
     ), "Some samples are lost when creating training samples and test samples"
 
     return (
@@ -181,8 +182,9 @@ def build_timestamp_data(
 
 
 def get_text_and_label_data(
-    model_config: dict, data_path: str, T_dash: int, prune: bool = False
+    model_config: dict, data_path: str, split: bool, T_dash: int, prune: bool = False #! Add split argument
 ):
+    #! バイナリファイルなら型付きのほうが親切だと思う
     with open(data_path + "texts.pkl", "rb") as f:
         texts = pickle.load(f)
 
@@ -207,74 +209,26 @@ def get_text_and_label_data(
     tokenized_text = tokenize_text_data(
         texts=texts, model_name=model_config["bert_type"]
     )
-
-    train_text = build_tweet_text_data(
-        hist_id_List=train_hist_id_List, tokenized_texts=tokenized_text, T_dash=T_dash
+    #! splitごとに異なる
+    if split == "train":
+        hist_id_List = train_hist_id_List
+    elif split == "valid":
+        hist_id_List = valid_hist_id_List
+    elif split == "test":
+        hist_id_List = test_hist_id_List
+    else:
+        raise ValueError(f"Invalid split: {split}. It must be train, valid, or test.")
+    text = build_tweet_text_data(
+        hist_id_List=hist_id_List, tokenized_texts=tokenized_text, T_dash=T_dash
     )
-    valid_text = build_tweet_text_data(
-        hist_id_List=valid_hist_id_List, tokenized_texts=tokenized_text, T_dash=T_dash
-    )
-    test_text = build_tweet_text_data(
-        hist_id_List=test_hist_id_List, tokenized_texts=tokenized_text, T_dash=T_dash
-    )
-
-    train_label = build_cashtag_label_data(
-        hist_id_List=train_hist_id_List, onehot=one_hot, T_dash=T_dash
-    )
-
-    valid_label = build_cashtag_label_data(
-        hist_id_List=valid_hist_id_List, onehot=one_hot, T_dash=T_dash
+    
+    label = build_cashtag_label_data(
+        hist_id_List=hist_id_List, onehot=one_hot, T_dash=T_dash
     )
 
-    test_label = build_cashtag_label_data(
-        hist_id_List=test_hist_id_List, onehot=one_hot, T_dash=T_dash
-    )
-    train_date, valild_date, test_date = get_date_data(
-        data_path=data_path, T_dash=T_dash, prune=prune
+    #! 読み込み，build_historyを重複して行うから冗長なget_date_dataは不要
+    data_date = build_timestamp_data(
+        hist_id_List=hist_id_List, time_stamp=date_timestamp, T_dash=T_dash
     )
 
-    return (
-        train_text,
-        valid_text,
-        test_text,
-        train_label,
-        valid_label,
-        test_label,
-        train_date,
-        valild_date,
-        test_date,
-    )
-
-
-def get_date_data(data_path: str, T_dash: int, prune: bool = False):
-    with open(data_path + "ids.pkl", "rb") as f:
-        ids = pickle.load(f)
-
-    with open(data_path + "one_hot_labels.pkl", "rb") as f:
-        one_hot = pickle.load(f)
-
-    with open(data_path + "date.pkl", "rb") as f:
-        date_timestamp = pickle.load(f)
-
-    if prune:
-        ids = ids[:10000]
-        one_hot = one_hot[:10000]
-        date_timestamp = date_timestamp[:10000]
-
-    train_hist_id_List, valid_hist_id_List, test_hist_id_List = build_history(
-        ids, T_dash=T_dash
-    )
-
-    train_date = build_timestamp_data(
-        hist_id_List=train_hist_id_List, time_stamp=date_timestamp, T_dash=T_dash
-    )
-
-    valid_date = build_timestamp_data(
-        hist_id_List=valid_hist_id_List, time_stamp=date_timestamp, T_dash=T_dash
-    )
-
-    test_date = build_timestamp_data(
-        hist_id_List=test_hist_id_List, time_stamp=date_timestamp, T_dash=T_dash
-    )
-
-    return (train_date, valid_date, test_date)
+    return (text, label, data_date)

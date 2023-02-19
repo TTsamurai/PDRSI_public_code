@@ -1,3 +1,5 @@
+from typing import Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 
@@ -43,7 +45,9 @@ class PDRSI(nn.Module):
         history_label,
         discussion,
         technical_disccusion,
-    ):
+        tweet_label: Optional[torch.Tensor] = None, #! Add label
+        #! labelがある時はlogit(torch.Tensor)のtupleのみ，あるときは(logit, loss)のようなtupleで返す
+    ) -> Union[Tuple[torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]:
         discussion_embed = self.conv_discussion(discussion)
         technical_discussion_embed = self.conv_technical_discussion(
             technical_disccusion
@@ -76,4 +80,12 @@ class PDRSI(nn.Module):
             discussion_embed + technical_discussion_embed + output + time_series_emb
         )
         predict_score = self.linear_prediction(output)
-        return predict_score
+
+        #! ここにlossの計算まで入れてしまう
+        #! これはtransformersのforwardの出力に知覚している
+        if tweet_label is not None:
+            criterion = nn.CrossEntropyLoss()
+            loss = criterion(predict_score, tweet_label)
+            return (predict_score, loss)
+        else:
+            return (predict_score,)
