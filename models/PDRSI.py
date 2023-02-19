@@ -44,10 +44,7 @@ class PDRSI(nn.Module):
     def forward(
         self,
         input_ids,
-        tweet_label,
         history_label,
-        macro_data,
-        micro_data,
         discussion,
         technical_disccusion,
     ):
@@ -105,8 +102,6 @@ if __name__ == "__main__":
     train_dataset = MyDatasetWithBothDiscussion(
         input_ids=train_text,
         labels=train_label,
-        macro_data=train_macro,
-        micro_data=train_micro,
         date=train_date,
         length_technical=length_technical,
     )

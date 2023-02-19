@@ -1,8 +1,28 @@
 import glob
 
 import pandas as pd
-from calculate_technical_indicators import get_technical_indicators
-from create_market_data import fill_weekends_and_holidays_with_previous_values
+from datetime import timedelta
+from preprocess.calculate_technical_indicators import get_technical_indicators
+
+
+def fill_weekends_and_holidays_with_previous_values(
+    data_technical: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Make sure to use this function after calculating the technical indicators
+    """
+    data_technical = data_technical.sort_values("Date")
+    data_length_date = data_technical["Date"].iloc[-1] - data_technical["Date"].iloc[0]
+    all_day = [
+        data_technical["Date"].iloc[0] + timedelta(i)
+        for i in range(data_length_date.days + 1)
+    ]
+    all_date_df = pd.DataFrame([all_day], index=["Date"]).T
+    return (
+        pd.merge(all_date_df, data_technical, on="Date", how="left")
+        .fillna(method="ffill")
+        .set_index("Date")
+    )
 
 
 def get_one_day_technical_discussion(use_path: list):
@@ -18,7 +38,7 @@ def get_one_day_technical_discussion(use_path: list):
     return pd.concat(technical_data, axis=0).sort_values(["Date", "ticker"])
 
 
-def get_n_days_technical_discussion(n: int, project_data_path: list):
+def get_n_days_technical_discussion(n: int, project_data_path: str):
     discussion = pd.read_csv(project_data_path + "hot_discussion.csv")
     data_path = glob.glob(project_data_path + "historical_data/*")
     use_path = []
@@ -32,11 +52,11 @@ def get_n_days_technical_discussion(n: int, project_data_path: list):
     if n == 1:
         return first_discussion.sort_values(["Date", "ticker"])
     sequential_data = []
-    for i in range(n):
+    for i_len in range(n):
         sequential_data.append(
             first_discussion.set_index(["Date", "ticker"])
             .groupby(by="ticker")
-            .shift(i)
+            .shift(i_len)
             .groupby(by="ticker")
             .fillna(method="bfill")
         )
@@ -45,7 +65,7 @@ def get_n_days_technical_discussion(n: int, project_data_path: list):
 
 if __name__ == "__main__":
     discussion = pd.read_csv("./data/hot_discussion.csv")
-    data_path = glob.glob("..//data/historical_data/*")
+    data_path = glob.glob("../data/historical_data/*")
     use_path = []
     for i in data_path:
         if (

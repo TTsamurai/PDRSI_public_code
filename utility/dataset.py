@@ -22,8 +22,6 @@ class MyDatasetWithBothDiscussion(Dataset):
         self,
         input_ids,
         labels,
-        macro_data,
-        micro_data,
         date,
         length_technical,
         data_path: str = "./data/",
@@ -32,8 +30,6 @@ class MyDatasetWithBothDiscussion(Dataset):
         self.input_ids = input_ids[:, 1:, :]
         self.tweet_labels = labels[:, :1, :]
         self.history_labels = labels[:, 1:, :]
-        self.macro_data_at_t_minus_1 = macro_data[:, 1, :]
-        self.micro_input_data = micro_data[:, 1:, :]
         self.date = date[:, 1]
         self.discussion = self.load_discussion_data(data_path=data_path)
         self.technical_discussion = self.load_technical_discussion_data(
@@ -79,8 +75,6 @@ class MyDatasetWithBothDiscussion(Dataset):
             self.input_ids[index],
             self.tweet_labels[index],
             self.history_labels[index],
-            self.macro_data_at_t_minus_1[index],
-            self.micro_input_data[index],
             self.take_discussion_data(
                 discussion=self.discussion, date_index=self.date[index]
             ),
@@ -95,7 +89,6 @@ def get_data(
     T_dash: int,
     prune: bool = False,
     project_path: str = "./",
-    discussion: bool = False,
 ):
     data_path = project_path + "data/"
     bert_type = model_config["bert_type"]
@@ -111,16 +104,9 @@ def get_data(
     data_train_label_path = project_path + "data/train/label_{}.npy".format(T_dash)
     data_valid_label_path = project_path + "data/valid/label_{}.npy".format(T_dash)
     data_test_label_path = project_path + "data/test/label_{}.npy".format(T_dash)
-    data_train_macro_path = project_path + "data/train/macro_{}.npy".format(T_dash)
-    data_valid_macro_path = project_path + "data/valid/macro_{}.npy".format(T_dash)
-    data_test_macro_path = project_path + "data/test/macro_{}.npy".format(T_dash)
-    data_train_micro_path = project_path + "data/train/micro_{}.npy".format(T_dash)
-    data_valid_micro_path = project_path + "data/valid/micro_{}.npy".format(T_dash)
-    data_test_micro_path = project_path + "data/test/micro_{}.npy".format(T_dash)
-    if discussion:
-        data_train_date_path = "./data/train/date_{}.npy".format(T_dash)
-        data_valid_date_path = "./data/valid/date_{}.npy".format(T_dash)
-        data_test_date_path = "./data/test/date_{}.npy".format(T_dash)
+    data_train_date_path = "./data/train/date_{}.npy".format(T_dash)
+    data_valid_date_path = "./data/valid/date_{}.npy".format(T_dash)
+    data_test_date_path = "./data/test/date_{}.npy".format(T_dash)
 
     if os.path.exists(data_train_text_path):
         train_text = np.load(data_train_text_path)
@@ -129,16 +115,9 @@ def get_data(
         train_label = np.load(data_train_label_path)
         valid_label = np.load(data_valid_label_path)
         test_label = np.load(data_test_label_path)
-        train_macro = np.load(data_train_macro_path)
-        valid_macro = np.load(data_valid_macro_path)
-        test_macro = np.load(data_test_macro_path)
-        train_micro = np.load(data_train_micro_path)
-        valid_micro = np.load(data_valid_micro_path)
-        test_micro = np.load(data_test_micro_path)
-        if discussion:
-            train_date = np.load(data_train_date_path, allow_pickle=True)
-            valid_date = np.load(data_valid_date_path, allow_pickle=True)
-            test_date = np.load(data_test_date_path, allow_pickle=True)
+        train_date = np.load(data_train_date_path, allow_pickle=True)
+        valid_date = np.load(data_valid_date_path, allow_pickle=True)
+        test_date = np.load(data_test_date_path, allow_pickle=True)
 
     else:
         (
@@ -148,12 +127,9 @@ def get_data(
             train_label,
             valid_label,
             test_label,
-            train_macro,
-            valid_macro,
-            test_macro,
-            train_micro,
-            valid_micro,
-            test_micro,
+            train_date,
+            valid_date,
+            test_date,
         ) = get_text_and_label_data(
             model_config=model_config, data_path=data_path, T_dash=T_dash, prune=prune
         )
@@ -163,31 +139,9 @@ def get_data(
         np.save(data_train_label_path, train_label)
         np.save(data_valid_label_path, valid_label)
         np.save(data_test_label_path, test_label)
-        np.save(data_train_macro_path, train_macro)
-        np.save(data_valid_macro_path, valid_macro)
-        np.save(data_test_macro_path, test_macro)
-        np.save(data_train_micro_path, train_micro)
-        np.save(data_valid_micro_path, valid_micro)
-        np.save(data_test_micro_path, test_micro)
-
-    if discussion:
-        return (
-            train_text,
-            valid_text,
-            test_text,
-            train_label,
-            valid_label,
-            test_label,
-            train_macro,
-            valid_macro,
-            test_macro,
-            train_micro,
-            valid_micro,
-            test_micro,
-            train_date,
-            valid_date,
-            test_date,
-        )
+        np.save(data_train_date_path, train_date)
+        np.save(data_valid_date_path, valid_date)
+        np.save(data_test_date_path, test_date)
 
     return (
         train_text,
@@ -196,12 +150,9 @@ def get_data(
         train_label,
         valid_label,
         test_label,
-        train_macro,
-        valid_macro,
-        test_macro,
-        train_micro,
-        valid_micro,
-        test_micro,
+        train_date,
+        valid_date,
+        test_date,
     )
 
 
@@ -221,36 +172,3 @@ if __name__ == "__main__":
         valid_micro,
         test_micro,
     ) = get_data(model_config=model_config, T_dash=4, project_path="../")
-
-
-class MyFrequentDataset(Dataset):
-    """
-    Return:
-    Tweet Label (16, 1, 50)
-    History label (16, 5, 50)
-    """
-
-    def __init__(self, input_ids, labels, macro_data, micro_data):
-        super().__init__()
-        # tweet at time t　は使わない
-        self.input_ids = input_ids[:, 1:, :]
-        # tweet at time t　をラベルに
-        self.tweet_labels = labels[:, :1, :]
-        # tweet at time t-2 ~ t-T-1をInputとして用いる
-        self.history_labels = labels[:, 1:, :]
-        # time t-1のmacroデータをconcatする　(time tの予測をするのに対して、ここはt-1 ~ t-Tのどの長さでも構わない）
-        self.macro_data_at_t_minus_1 = macro_data[:, 1, :]
-        self.micro_input_data = micro_data[:, 1:, :]
-        self.len = len(input_ids)
-
-    def __len__(self):
-        return self.len
-
-    def __getitem__(self, index):
-        return (
-            self.input_ids[index],
-            self.tweet_labels[index],
-            self.history_labels[index],
-            self.macro_data_at_t_minus_1[index],
-            self.micro_input_data[index],
-        )

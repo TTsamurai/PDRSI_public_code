@@ -1,4 +1,5 @@
 import pandas as pd
+import glob
 from pandarallel import pandarallel
 
 # Setup
@@ -22,7 +23,7 @@ def exclude_invalid_cashtags(data: pd.DataFrame) -> pd.DataFrame:
     return data.assign(valid_cashtags=valid_cashtags).drop("entities.cashtags", axis=1)
 
 
-def turn_str_dict_into_list(x):
+def turn_str_dict_into_list(x: str) -> list:
     return list(map(lambda y: y.split('tag": "')[-1][0:-1], x.split("}")))[:-1]
 
 
@@ -49,7 +50,7 @@ def user_filter_with_number_of_stocks(
     )
 
     investors_bool = (
-        ((number_of_stocks_per_investor < 100) & (number_of_stocks_per_investor >= 10))
+        ((number_of_stocks_per_investor < high_bar) & (number_of_stocks_per_investor >= low_bar))
         .reset_index()
         .set_axis(["author.id", "boolean_author"], axis=1)
         .reset_index(drop=True)
@@ -64,8 +65,22 @@ def user_filter_with_number_of_stocks(
     ]
 
 
+def get_company_df_dict(path_folder: str) -> pd.DataFrame:
+    folder = sorted(glob.glob("{}/*.csv".format(path_folder)))
+    cashtag_name = list(map(lambda x: x.split("/")[-1][:-4], folder))
+    dataframe_list = [
+        pd.read_csv(
+            path,
+            engine="python",
+            usecols=["id", "text", "created_at", "entities.cashtags", "author.id"],
+        )
+        for path in folder
+    ]
+    return dict(zip(cashtag_name, dataframe_list))
+
+
 def get_filtered_data(data_path: str) -> pd.DataFrame:
-    data = pd.read_csv(data_path)
+    data = get_company_df_dict(data_path)
     # Concatenate all the data with ticker code
     all_tweets_with_ticker_code = pd.concat(
         [df.assign(ticker=ticker_code) for ticker_code, df in data.items()], axis=0
@@ -79,5 +94,8 @@ def get_filtered_data(data_path: str) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    load_data_path = "../data/load_data"
+    load_data_path = (
+        "../Twitter_recommendation/data/first_week_september_data/csv_folder"
+    )
     filtered_data = get_filtered_data(load_data_path)
+    filtered_data.to_csv("../data/sample_data.csv")

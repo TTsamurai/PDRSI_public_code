@@ -36,39 +36,25 @@ def main(
         train_label,
         valid_label,
         test_label,
-        train_macro,
-        valid_macro,
-        test_macro,
-        train_micro,
-        valid_micro,
-        test_micro,
         train_date,
         valid_date,
         test_date,
-    ) = get_data(model_config=model_config, T_dash=T_dash, prune=prune, discussion=True)
+    ) = get_data(model_config=model_config, T_dash=T_dash, prune=prune)
 
     if debug_test:
         train_text = train_text[:100, :, :]
         train_label = train_label[:100, :, :]
-        train_macro = train_macro[:100, :, :]
-        train_micro = train_micro[:100, :, :]
         train_date = train_date[:100]
         valid_text = train_text[:100, :, :]
         valid_label = train_label[:100, :, :]
-        valid_macro = train_macro[:100, :, :]
-        valid_micro = train_micro[:100, :, :]
         valid_date = valid_date[:100]
         test_text = train_text[:100, :, :]
         test_label = train_label[:100, :, :]
-        test_macro = train_macro[:100, :, :]
-        test_micro = train_micro[:100, :, :]
         test_date = test_date[:100]
 
     train_dataset = MyDatasetWithBothDiscussion(
         input_ids=train_text,
         labels=train_label,
-        macro_data=train_macro,
-        micro_data=train_micro,
         date=train_date,
         length_technical=length_technical,
     )
@@ -76,8 +62,6 @@ def main(
     valid_dataset = MyDatasetWithBothDiscussion(
         input_ids=valid_text,
         labels=valid_label,
-        macro_data=valid_macro,
-        micro_data=valid_micro,
         date=valid_date,
         length_technical=length_technical,
     )
@@ -85,8 +69,6 @@ def main(
     test_dataset = MyDatasetWithBothDiscussion(
         input_ids=test_text,
         labels=test_label,
-        macro_data=test_macro,
-        micro_data=test_micro,
         date=test_date,
         length_technical=length_technical,
     )
@@ -108,24 +90,17 @@ def main(
             input_text = batch[0]
             tweet_label = batch[1].squeeze(dim=1).float()
             history_label = batch[2].float()
-            macro_data = batch[3].float()
-            micro_data = batch[4].float()
-            discussion = batch[5].float()
-            technical_discussion = batch[6].float()
+            discussion = batch[3].float()
+            technical_discussion = batch[4].float()
             if use_gpu:
                 input_text = input_text.to(device)
                 tweet_label = tweet_label.to(device)
                 history_label = history_label.to(device)
-                macro_data = macro_data.to(device)
-                micro_data = micro_data.to(device)
                 discussion = discussion.to(device)
                 technical_discussion = technical_discussion.to(device)
             predict = model(
                 input_text,
-                tweet_label,
                 history_label,
-                macro_data,
-                micro_data,
                 discussion,
                 technical_discussion,
             )
@@ -143,24 +118,17 @@ def main(
             input_text = batch[0]
             tweet_label = batch[1].squeeze().float()
             history_label = batch[2].float()
-            macro_data = batch[3].float()
-            micro_data = batch[4].float()
-            discussion = batch[5].float()
-            technical_discussion = batch[6].float()
+            discussion = batch[3].float()
+            technical_discussion = batch[4].float()
             if use_gpu:
                 input_text = input_text.to(device)
                 tweet_label = tweet_label.to(device)
                 history_label = history_label.to(device)
-                macro_data = macro_data.to(device)
-                micro_data = micro_data.to(device)
                 discussion = discussion.to(device)
                 technical_discussion = technical_discussion.to(device)
             predict = model(
                 input_text,
-                tweet_label,
                 history_label,
-                macro_data,
-                micro_data,
                 discussion,
                 technical_discussion,
             )
@@ -184,24 +152,17 @@ def main(
                 input_text = batch[0]
                 tweet_label = batch[1].squeeze().float()
                 history_label = batch[2].float()
-                macro_data = batch[3].float()
-                micro_data = batch[4].float()
-                discussion = batch[5].float()
-                technical_discussion = batch[6].float()
+                discussion = batch[3].float()
+                technical_discussion = batch[4].float()
                 if use_gpu:
                     input_text = input_text.to(device)
                     tweet_label = tweet_label.to(device)
                     history_label = history_label.to(device)
-                    macro_data = macro_data.to(device)
-                    micro_data = micro_data.to(device)
                     discussion = discussion.to(device)
                     technical_discussion = technical_discussion.to(device)
                 predict = model(
                     input_text,
-                    tweet_label,
                     history_label,
-                    macro_data,
-                    micro_data,
                     discussion,
                     technical_discussion,
                 )
@@ -225,16 +186,13 @@ if __name__ == "__main__":
     batch_size = 1024
     T_dash = 4
     num_epochs = 21
-    seed = 15
-    debut_test = False
+    debut_test = True
     technical_length_list = [7]
     bert_types = ["finbert"]
     for bert_type in bert_types:
         for technical_length in technical_length_list:
             model_config = {
-                "alias": "discussion_text_and_technical_{}_timeseries_{}_{}_{}".format(
-                    technical_length, T_dash, bert_type, seed
-                ),
+                "alias": "PDRSI_",
                 "bert_type": bert_type,
                 "num_epochs": num_epochs,
             }

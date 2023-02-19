@@ -6,7 +6,6 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizer, RobertaTokenizer
-
 from model_components.bert import Bert
 
 
@@ -48,7 +47,7 @@ def turn_data_with_date(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_bert_model_with_gpu(
-    text: list, model, device=torch.device("cuda", index=1)
+    text: torch.Tensor, model, device=torch.device("cuda", index=0)
 ) -> list:
     model.to(device)
     text = text.to(device)
@@ -56,13 +55,12 @@ def calculate_bert_model_with_gpu(
     return output.to("cpu").detach().numpy()
 
 
-if __name__ == "__main__":
-    filtered_data_path = "../filterd_data.csv"
+def create_hot_discussion(data_path: str) -> pd.DataFrame:
+    filtered_data_path = data_path + "sample_data.csv"
     df = pd.read_csv(filtered_data_path)
     df_with_date = turn_data_with_date(df)
     data_unique = df_with_date["Date"].unique()
     ticker_unique = df_with_date["ticker"].unique()
-    test = False
     model_config = {"bert_type": "finbert"}
     bert_model = Bert(model_config=model_config)
     full_zeros_data = pd.DataFrame(
@@ -95,4 +93,9 @@ if __name__ == "__main__":
         ).apply(lambda x: x[0].mean(axis=0), axis=1)
 
         embed.append(pd.DataFrame(np.vstack(check.values), index=check.index))
-    pd.concat(embed, axis=0).to_csv("./data/hot_discussion.csv")
+    pd.concat(embed, axis=0).to_csv(data_path + "hot_discussion.csv")
+
+
+if __name__ == "__main__":
+    data_path = "./data/"
+    create_hot_discussion(data_path=data_path)
