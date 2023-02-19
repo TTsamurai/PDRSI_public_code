@@ -4,11 +4,69 @@ import torch.nn as nn
 from torch.optim import AdamW
 from torchinfo import summary
 from tqdm import tqdm
-
+from typing import Dict, List
+from torch.utils.data import DataLoader
 from models.PDRSI import PDRSI
-from utility.dataset import get_dataloader #! add get_dataloader and remove MyDatasetWithBothDiscussion and get_data
+from utility.dataset import (
+    get_dataloader,
+)  
 from utility.matric import report_performance
 from utility.utils import torch_fix_seed
+
+
+def move_to_cuda(
+    batch: List[torch.Tensor], model: nn.Module, device: torch.device
+) -> Dict[str, torch.Tensor]:
+    model.to(device=device)
+    input_text = batch[0]
+    history_label = batch[1].float()
+    discussion = batch[2].float()
+    technical_discussion = batch[3].float()
+    tweet_label = batch[4].squeeze(dim=1).float()
+    input_text = input_text.to(device)
+    history_label = history_label.to(device)
+    discussion = discussion.to(device)
+    technical_discussion = technical_discussion.to(device)
+    tweet_label = tweet_label.to(device)
+    return {
+        "input_ids": input_text,
+        "history_label": history_label,
+        "discussion": discussion,
+        "technical_discussion": technical_discussion,
+        "tweet_label": tweet_label,
+    }
+
+
+def eval_model(
+    model: nn.Module,
+    dataloader: DataLoader,
+    device: torch.device,
+    mode: str,
+    epoch: int,
+):
+    if mode == "valid":
+        name = "val result"
+    else:
+        name = "test result"
+    with torch.no_grad():
+        eval_predict = []
+        eval_label = []
+        eval_epoch_loss = 0
+        for batch in dataloader:
+            tweet_label = batch[4].squeeze().float()
+            batch = move_to_cuda(batch=batch, model=model, device=device)
+            predict, loss = model(**batch)
+            eval_epoch_loss += loss.detach().to("cpu").item()
+            eval_predict.append(predict.detach().to("cpu").numpy())
+            eval_label.append(tweet_label.detach().to("cpu").numpy())
+    return report_performance(
+        np.concatenate(eval_label, axis=0),
+        np.concatenate(eval_predict, axis=0),
+        eval_epoch_loss,
+        name,
+        epoch_id=epoch,
+        config=model_config,
+    )
 
 
 def main(model, debug_test: bool, model_config: dict):
@@ -21,17 +79,11 @@ def main(model, debug_test: bool, model_config: dict):
     batch_size = model_config["batch_size"]
     lr = model_config["lr"]
     device = torch.device("cuda", index=0) if torch.cuda.is_available() else "cpu"
-    #! 個人的ではあるが，GPUあるのにCPUでやりたい人はCUDA_VISIBLE_DEVICE=0 python model_run.py
-    #! で実行するのでこれはなくても良いと思う
-    use_gpu = True
 
     if debug_test:
         model_config = {"alias": "debug_test_{}".format(T_dash), "bert_type": bert_type}
         num_epochs = 2
 
-    #! train, valid, testごとに毎行書くのは冗長
-    #! datasetはdataloaderに入力する以外使わないのでget_dataloaderに押し込めた
-    #! テストとかきちんとするなら分けるべきではあると思う
     train_dataloader = get_dataloader(
         model_config=model_config,
         T_dash=T_dash,
@@ -39,7 +91,7 @@ def main(model, debug_test: bool, model_config: dict):
         length_technical=length_technical,
         batch_size=batch_size,
         prune=prune,
-        debug_test=debug_test
+        debug_test=debug_test,
     )
     valid_dataloader = get_dataloader(
         model_config=model_config,
@@ -48,7 +100,7 @@ def main(model, debug_test: bool, model_config: dict):
         length_technical=length_technical,
         batch_size=batch_size,
         prune=prune,
-        debug_test=debug_test
+        debug_test=debug_test,
     )
     test_dataloader = get_dataloader(
         model_config=model_config,
@@ -57,137 +109,33 @@ def main(model, debug_test: bool, model_config: dict):
         length_technical=length_technical,
         batch_size=batch_size,
         prune=prune,
-        debug_test=debug_test
+        debug_test=debug_test,
     )
-    print(summary(model=model))
-
-    if use_gpu:
-        model.to(device)
-
-    # loss_fct = nn.CrossEntropyLoss()
-    criterion = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
     for epoch in range(num_epochs):
         epoch_train_loss = 0
-        epoch_valid_loss = 0
-        epoch_test_loss = 0
         model.train()
-        for i, batch in tqdm(enumerate(train_dataloader)):
-            #! squeezeやfloatの処理をdatasetや前処理に入れる+lossの処理までモデルの実装に入れると
-            #! 以下のように書ける
-            """
-            def move_to_cuda(
-                batch: Dict[str, torch.Tensor], device: torch.device
-            ) -> Dict[str, torch.Tensor]:
-                for k, v in batch.items():
-                    batch[k] = v.to(device)
-                return batch
-            
-            batch = move_to_cuda(batch, device)
-            predict, loss = model(**batch)
-            """
-            input_text = batch[0]
-            tweet_label = batch[1].squeeze(dim=1).float()
-            history_label = batch[2].float()
-            discussion = batch[3].float()
-            technical_discussion = batch[4].float()
-            if use_gpu:
-                input_text = input_text.to(device)
-                tweet_label = tweet_label.to(device)
-                history_label = history_label.to(device)
-                discussion = discussion.to(device)
-                technical_discussion = technical_discussion.to(device)
-            predict = model(
-                input_text,
-                history_label,
-                discussion,
-                technical_discussion,
-            )
-            loss = criterion(predict, tweet_label)
+        for _, batch in tqdm(enumerate(train_dataloader)):
+            batch = move_to_cuda(batch=batch, model=model, device=device)
+            _, loss = model(**batch)
             epoch_train_loss += loss.detach().to("cpu").item()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        model.eval()
-        val_predict = []
-        val_label = []
-        #! validationもbackwardせず勾配が必要ないのでwith torch.no_grad()の中に入れて良い
-        #! またvalidationとtestはほぼ同じコードなはずなので，関数化することで冗長さが減らせると思う(これは人による)
-        """
-        def eval_model(model: nn.Module, dataloader: DataLoader, device: torch.device):
-            with torch.no_grad():
-                for batch in loader:
-                    # モデルに入力したり評価
-            return report_performance(色々入力)
-        """
-        for _, batch in tqdm(enumerate(valid_dataloader)):
-
-            input_text = batch[0]
-            tweet_label = batch[1].squeeze().float()
-            history_label = batch[2].float()
-            discussion = batch[3].float()
-            technical_discussion = batch[4].float()
-            if use_gpu:
-                input_text = input_text.to(device)
-                tweet_label = tweet_label.to(device)
-                history_label = history_label.to(device)
-                discussion = discussion.to(device)
-                technical_discussion = technical_discussion.to(device)
-            predict = model(
-                input_text,
-                history_label,
-                discussion,
-                technical_discussion,
-            )
-            loss = criterion(predict, tweet_label)
-            #! 以下3行，to("cpu")しなくてもcpuに渡る気がする
-            epoch_valid_loss += loss.detach().to("cpu").item()
-            val_predict.append(predict.detach().to("cpu").numpy())
-            val_label.append(tweet_label.detach().to("cpu").numpy())
-        report_performance(
-            np.concatenate(val_label, axis=0),
-            np.concatenate(val_predict, axis=0),
-            epoch_valid_loss,
-            "val result",
-            epoch_id=epoch,
-            config=model_config,
+        eval_model(
+            model=model,
+            dataloader=valid_dataloader,
+            device=device,
+            mode="valid",
+            epoch=epoch,
         )
-
-        with torch.no_grad():
-            test_predict = []
-            test_label = []
-            for i, batch in enumerate(test_dataloader):
-                input_text = batch[0]
-                tweet_label = batch[1].squeeze().float()
-                history_label = batch[2].float()
-                discussion = batch[3].float()
-                technical_discussion = batch[4].float()
-                if use_gpu:
-                    input_text = input_text.to(device)
-                    tweet_label = tweet_label.to(device)
-                    history_label = history_label.to(device)
-                    discussion = discussion.to(device)
-                    technical_discussion = technical_discussion.to(device)
-                predict = model(
-                    input_text,
-                    history_label,
-                    discussion,
-                    technical_discussion,
-                )
-                #! remove criterion
-                # loss = criterion(predict, tweet_label)
-                #! 以下3行，to("cpu")しなくてもcpuに渡る気がする
-                epoch_test_loss += loss.detach().to("cpu").item()
-                test_predict.append(predict.detach().to("cpu").numpy())
-                test_label.append(tweet_label.detach().to("cpu").numpy())
-        report_performance(
-            np.concatenate(test_label, axis=0),
-            np.concatenate(test_predict, axis=0),
-            epoch_test_loss,
-            "test result",
-            epoch_id=epoch,
-            config=model_config,
+        eval_model(
+            model=model,
+            dataloader=test_dataloader,
+            device=device,
+            mode="test",
+            epoch=epoch,
         )
 
 

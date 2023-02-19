@@ -10,8 +10,6 @@ from preprocess.create_data import get_text_and_label_data
 from preprocess.create_technical_discussion import get_n_days_technical_discussion
 
 
-#! 内容を読んでいないが，Datasetではなくその前のpreprocessで処理して，
-#! DatasetはPyTorchとかのを使ったほうが素直な気はする
 class MyDatasetWithBothDiscussion(Dataset):
     """
     Return:
@@ -73,11 +71,8 @@ class MyDatasetWithBothDiscussion(Dataset):
         return discussion
 
     def __getitem__(self, index):
-        #! __getitem__に処理を入れると同じサンプルに対してepoch回処理してしまわない？
-        #! そうであるならばこれも前処理でやっておくほうが素直かと
         return (
             self.input_ids[index],
-            self.tweet_labels[index],
             self.history_labels[index],
             self.take_discussion_data(
                 discussion=self.discussion, date_index=self.date[index]
@@ -85,20 +80,24 @@ class MyDatasetWithBothDiscussion(Dataset):
             self.take_discussion_data(
                 discussion=self.technical_discussion, date_index=self.date[index]
             ),
+            self.tweet_labels[index],
         )
 
-#! train, valid, testごとにそれぞれ書くのは無駄なので引数で処理
-def get_data( #! Change function name
+
+def get_dataset_data(
     model_config: dict,
-    T_dash: int, #! PEP8では変数名は小文字推奨
-    split: str, #! Add split argument
+    T_dash: int,
+    split: str,
     prune: bool = False,
     project_path: str = "./",
 ):
-    assert split in {"train", "valid", "test"}, f"Invalid split: {split}. It must be train, valid, or test."
+    assert split in {
+        "train",
+        "valid",
+        "test",
+    }, f"Invalid split: {split}. It must be train, valid, or test."
     data_path = project_path + "data/"
     bert_type = model_config["bert_type"]
-    #! Change variable name and format argument
     data_text_path = project_path + "data/{}/text_{}_{}.npy".format(
         split, T_dash, bert_type
     )
@@ -106,15 +105,17 @@ def get_data( #! Change function name
     data_date_path = "./data/{}/date_{}.npy".format(split, T_dash)
 
     if os.path.exists(data_text_path):
-        #! 便宜上変数名を変えたがここにこだわりはない
         data_text = np.load(data_text_path)
         data_label = np.load(data_label_path)
         data_date = np.load(data_date_path, allow_pickle=True)
-        
+
     else:
-        #! ここもsplitを追加
         data_text, data_label, data_date = get_text_and_label_data(
-            model_config=model_config, data_path=data_path, split=split, T_dash=T_dash, prune=prune
+            model_config=model_config,
+            data_path=data_path,
+            split=split,
+            T_dash=T_dash,
+            prune=prune,
         )
 
         np.save(data_text_path, data_text)
@@ -132,15 +133,19 @@ def get_dataloader(
     batch_size: int,
     prune: bool = False,
     debug_test: bool = False,
-) -> DataLoader: 
-    assert split in {"train", "valid", "test"}, f"Invalid split: {split}. It must be train, valid, or test."
-    data_text, data_label, data_date = get_data(model_config=model_config, splilt=split, T_dash=T_dash, prune=prune)
+) -> DataLoader:
+    assert split in {
+        "train",
+        "valid",
+        "test",
+    }, f"Invalid split: {split}. It must be train, valid, or test."
+    data_text, data_label, data_date = get_dataset_data(
+        model_config=model_config, split=split, T_dash=T_dash, prune=prune
+    )
     if debug_test:
         data_text = data_text[:100, :, :]
         data_label = data_label[:100, :, :]
         data_date = data_date[:100]
-    #! 最近はHuggingFaceのDatasetsライブラリに移行する人もちらほら
-    #! cf. https://huggingface.co/docs/datasets/index
     dataset = MyDatasetWithBothDiscussion(
         input_ids=data_text,
         labels=data_label,

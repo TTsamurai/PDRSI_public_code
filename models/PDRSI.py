@@ -31,7 +31,7 @@ class PDRSI(nn.Module):
             vdim=self.num_label,
             batch_first=True,
         )
-        self.conv_discussion = ConvDiscussion()  # input
+        self.conv_discussion = ConvDiscussion()  
         self.rnn_model = nn.LSTM(
             self.hiddent_size, self.hiddent_size, 1, batch_first=True
         )
@@ -44,15 +44,13 @@ class PDRSI(nn.Module):
         input_ids,
         history_label,
         discussion,
-        technical_disccusion,
-        tweet_label: Optional[torch.Tensor] = None, #! Add label
-        #! labelがある時はlogit(torch.Tensor)のtupleのみ，あるときは(logit, loss)のようなtupleで返す
+        technical_discussion,
+        tweet_label: Optional[torch.Tensor] = None,
     ) -> Union[Tuple[torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]:
         discussion_embed = self.conv_discussion(discussion)
         technical_discussion_embed = self.conv_technical_discussion(
-            technical_disccusion
+            technical_discussion
         )
-        # Baselineモデルではhistory
         history_label = history_label[:, 1:, :]
         input_ids_compress = input_ids.view(-1, self.max_seq_length)
         bert_output = self.model(input_ids_compress)
@@ -81,8 +79,6 @@ class PDRSI(nn.Module):
         )
         predict_score = self.linear_prediction(output)
 
-        #! ここにlossの計算まで入れてしまう
-        #! これはtransformersのforwardの出力に知覚している
         if tweet_label is not None:
             criterion = nn.CrossEntropyLoss()
             loss = criterion(predict_score, tweet_label)

@@ -4,7 +4,6 @@ import torch.nn as nn
 class ConvDiscussion(nn.Module):
     def __init__(self):
         super(ConvDiscussion, self).__init__()
-        #! write with nn.Sequential
         self.seq1 = nn.Sequential(
             nn.Conv2d(1, 1, 4, stride=2),
             nn.ReLU(),
@@ -19,8 +18,6 @@ class ConvDiscussion(nn.Module):
         )
         
     def forward(self, x):
-        # channel = 1
-        #! write with nn.Sequential
         x = self.seq1(x.unsqueeze(dim=1))
         x = x.view(x.size()[0], -1)
         x = self.seq2(x)
@@ -30,9 +27,6 @@ class ConvDiscussion(nn.Module):
 class ConvTechnicalDiscussion(nn.Module):
     def __init__(self, n_length):
         super(ConvTechnicalDiscussion, self).__init__()
-        #! write with nn.Sequential
-        #! 行数的にはもとのほうが少ない気もするが，こちらは順番が見やすい
-        #! どちらがいいかはわからない
         self.seq1 = nn.Sequential(
             nn.Conv2d(1, 1, 4, stride=2),
             nn.ReLU(),
@@ -45,13 +39,11 @@ class ConvTechnicalDiscussion(nn.Module):
                 nn.ReLU(),
                 nn.MaxPool2d(2, stride=2),
             )
-        #! 型が後で変わるのが気持ち悪いのでselfを取り除いた
         fc_layers = {
             1: nn.Linear(375, 768),
             7: nn.Linear(660, 768),
             14: nn.Linear(1464, 768),
         }
-        #! なくても結局ValueError
         self.fc_layer = nn.Sequential(
             fc_layers[n_length],
             nn.ReLU(),

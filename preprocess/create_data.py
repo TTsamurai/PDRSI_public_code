@@ -121,7 +121,6 @@ def create_train_id_dict(id_dic: dict, test_id_dict: dict, valid_id_dict: dict) 
 
 def build_history(ids: list, T_dash: int):
     id_dic = defaultdict(list)
-    # 空の文字列がないから0からにする
     for i in range(0, len(ids)):
         id_dic[ids[i]].append(i)
     test_id_dict = create_test_id_dict(id_dic=id_dic, T_dash=T_dash)
@@ -129,14 +128,6 @@ def build_history(ids: list, T_dash: int):
     train_id_dict = create_train_id_dict(
         id_dic=id_dic, test_id_dict=test_id_dict, valid_id_dict=valid_id_dict
     )
-    assert set(test_id_dict.keys()) == set(
-        valid_id_dict.keys()
-    ), "Some samples are lost during valid set"
-    #! ここで両方test_id_dictになっているのは誤り
-    assert set(test_id_dict.keys()) == set(
-        train_id_dict.keys()
-    ), "Some samples are lost when creating training samples and test samples"
-
     return (
         build_history_list_by_id_dic(id_dic=train_id_dict, T_dash=T_dash),
         build_history_list_by_id_dic(id_dic=valid_id_dict, T_dash=T_dash),
@@ -146,7 +137,6 @@ def build_history(ids: list, T_dash: int):
 
 def build_test_history(ids: list, T_dash: int):
     id_dic = defaultdict(list)
-    # 空の文字列がないから0からにする
     for i in range(0, len(ids)):
         id_dic[ids[i]].append(i)
     test_id_dict = create_test_id_dict(id_dic=id_dic, T_dash=T_dash)
@@ -182,20 +172,23 @@ def build_timestamp_data(
 
 
 def get_text_and_label_data(
-    model_config: dict, data_path: str, split: bool, T_dash: int, prune: bool = False #! Add split argument
+    model_config: dict,
+    data_path: str,
+    split: bool,
+    T_dash: int,
+    prune: bool = False,
 ):
-    #! バイナリファイルなら型付きのほうが親切だと思う
     with open(data_path + "texts.pkl", "rb") as f:
-        texts = pickle.load(f)
+        texts: List[any] = pickle.load(f)
 
     with open(data_path + "ids.pkl", "rb") as f:
-        ids = pickle.load(f)
+        ids: List[any] = pickle.load(f)
 
     with open(data_path + "one_hot_labels.pkl", "rb") as f:
-        one_hot = pickle.load(f)
+        one_hot: np.ndarray = pickle.load(f)
 
     with open(data_path + "date.pkl", "rb") as f:
-        date_timestamp = pickle.load(f)
+        date_timestamp: List[any] = pickle.load(f)
 
     if prune:
         texts = texts[:10000]
@@ -209,7 +202,6 @@ def get_text_and_label_data(
     tokenized_text = tokenize_text_data(
         texts=texts, model_name=model_config["bert_type"]
     )
-    #! splitごとに異なる
     if split == "train":
         hist_id_List = train_hist_id_List
     elif split == "valid":
@@ -221,12 +213,10 @@ def get_text_and_label_data(
     text = build_tweet_text_data(
         hist_id_List=hist_id_List, tokenized_texts=tokenized_text, T_dash=T_dash
     )
-    
+
     label = build_cashtag_label_data(
         hist_id_List=hist_id_List, onehot=one_hot, T_dash=T_dash
     )
-
-    #! 読み込み，build_historyを重複して行うから冗長なget_date_dataは不要
     data_date = build_timestamp_data(
         hist_id_List=hist_id_List, time_stamp=date_timestamp, T_dash=T_dash
     )

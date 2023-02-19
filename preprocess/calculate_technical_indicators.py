@@ -61,8 +61,3 @@ def get_talib_features(data: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
-if __name__ == "__main__":
-    data_path = "./data/historical_data/"
-    sample_data = pd.read_csv(data_path + "AAPL_historical.csv")
-    technical_indicators = get_technical_indicators(sample_data)
