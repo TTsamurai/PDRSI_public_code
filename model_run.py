@@ -166,7 +166,6 @@ def main(
                     discussion,
                     technical_discussion,
                 )
-                # loss = loss_fct(tweet_label, predict)
                 loss = criterion(predict, tweet_label)
                 epoch_test_loss += loss.detach().to("cpu").item()
                 test_predict.append(predict.detach().to("cpu").numpy())
@@ -182,30 +181,29 @@ def main(
 
 
 if __name__ == "__main__":
-    torch_fix_seed(seed=2020)
-    batch_size = 1024
-    T_dash = 4
-    num_epochs = 21
+    SEED = 2020
+    BATCH_SIZE = 1024
+    T_DASH = 4
+    NUM_EPOCHS = 21
     debut_test = True
-    technical_length_list = [7]
-    bert_types = ["finbert"]
-    for bert_type in bert_types:
-        for technical_length in technical_length_list:
-            model_config = {
-                "alias": "PDRSI_",
-                "bert_type": bert_type,
-                "num_epochs": num_epochs,
-            }
-            model = PDRSI(
-                batch_size=batch_size,
-                model_config=model_config,
-                length_technical=technical_length,
-            )
+    TECHNICAL_LENGTH = 7
+    BERT_TYPE = "finbert"
+    model_config = {
+        "alias": "PDRSI_",
+        "bert_type": BERT_TYPE,
+        "num_epochs": NUM_EPOCHS,
+    }
+    torch_fix_seed(seed=SEED)
+    model = PDRSI(
+        batch_size=BATCH_SIZE,
+        model_config=model_config,
+        length_technical=TECHNICAL_LENGTH,
+    )
 
-            main(
-                model,
-                batch_size=batch_size,
-                length_technical=technical_length,
-                debug_test=debut_test,
-                model_config=model_config,
-            )
+    main(
+        model,
+        batch_size=BATCH_SIZE,
+        length_technical=TECHNICAL_LENGTH,
+        debug_test=debut_test,
+        model_config=model_config,
+    )

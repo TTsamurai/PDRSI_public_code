@@ -41,6 +41,8 @@ class ConvTechnicalDiscussion(nn.Module):
         }
         if n_length not in self.fc_layers:
             raise ValueError("N_length Check")
+        else :
+            self.fc_layer = self.fc_layers[n_length]
 
     def forward(self, x):
         x = x.unsqueeze(dim=1)
@@ -52,6 +54,6 @@ class ConvTechnicalDiscussion(nn.Module):
             x = self.relu(x)
             x = self.pool(x)
         x = x.view(x.size()[0], -1)
-        x = self.fc_layers[self.n_length](x)
+        x = self.fc_layer(x)
         x = self.relu(x)
         return x
