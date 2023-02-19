@@ -154,21 +154,3 @@ def get_data(
         valid_date,
         test_date,
     )
-
-
-if __name__ == "__main__":
-    model_config = {"bert_type": "bert"}
-    (
-        train_text,
-        valid_text,
-        test_text,
-        train_label,
-        valid_label,
-        test_label,
-        train_macro,
-        valid_macro,
-        test_macro,
-        train_micro,
-        valid_micro,
-        test_micro,
-    ) = get_data(model_config=model_config, T_dash=4, project_path="../")

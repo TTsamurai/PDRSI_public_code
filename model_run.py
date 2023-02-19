@@ -12,16 +12,15 @@ from utility.matric import report_performance
 from utility.utils import torch_fix_seed
 
 
-def main(
-    model, batch_size: int, length_technical: int, debug_test: bool, model_config: dict
-):
-    T_dash = 4
+def main(model, debug_test: bool, model_config: dict):
+    T_dash = model_config["T_dash"]
     prune = False
     debug_test = debug_test
+    length_technical = model_config["length_technical"]
     bert_type = model_config["bert_type"]
     num_epochs = model_config["num_epochs"]
-    batch_size = batch_size
-    lr = 0.00005
+    batch_size = model_config["batch_size"]
+    lr = model_config["lr"]
     device = torch.device("cuda", index=0) if torch.cuda.is_available() else "cpu"
     use_gpu = True
 
@@ -186,24 +185,23 @@ if __name__ == "__main__":
     T_DASH = 4
     NUM_EPOCHS = 21
     debut_test = True
-    TECHNICAL_LENGTH = 7
+    LENGTH_TECHNICAL = 7
+    LEARNING_RATE = 0.0005
     BERT_TYPE = "finbert"
     model_config = {
         "alias": "PDRSI_",
         "bert_type": BERT_TYPE,
         "num_epochs": NUM_EPOCHS,
+        "T_dash": T_DASH,
+        "batch_size": BATCH_SIZE,
+        "lr": LEARNING_RATE,
+        "length_technical": LENGTH_TECHNICAL,
     }
     torch_fix_seed(seed=SEED)
-    model = PDRSI(
-        batch_size=BATCH_SIZE,
-        model_config=model_config,
-        length_technical=TECHNICAL_LENGTH,
-    )
+    model = PDRSI(model_config=model_config)
 
     main(
         model,
-        batch_size=BATCH_SIZE,
-        length_technical=TECHNICAL_LENGTH,
         debug_test=debut_test,
         model_config=model_config,
     )
