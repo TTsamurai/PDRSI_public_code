@@ -12,5 +12,4 @@ The proposed PDRSI considers two investor's personal features: dynamic preferenc
 The experimental results support the usefulness of the proposed PDRSI, and the ablation studies show the effect of each module. 
 For reproduction, we follow Twitter's developer policy to share our dataset for future work.
 
-## ![スクリーンショット 2024-01-29 11 14 59](https://github.com/TTsamurai/PDRSI_public_code/assets/58796384/9307523b-aa1e-4a0f-b464-41acdbf95834)
-
+<img width="1623" alt="スクリーンショット 2024-01-29 13 32 40" src="https://github.com/TTsamurai/PDRSI_public_code/assets/58796384/f76bfd94-af88-40e8-aba5-5839410bf5e3">
